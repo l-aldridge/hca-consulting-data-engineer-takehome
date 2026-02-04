@@ -1,26 +1,26 @@
 -- WARNING:
 -- This script DROPS all objects created by the take-home exercise.
 -- Drop analytics tables
-DROP TABLE IF EXISTS `hca-takehome`.`analytics`.`discharge_summary`;
-DROP TABLE IF EXISTS `hca-takehome`.`analytics`.`fct_procedure`;
-DROP TABLE IF EXISTS `hca-takehome`.`analytics`.`fct_diagnosis`;
-DROP TABLE IF EXISTS `hca-takehome`.`analytics`.`fct_discharge`;
+DROP TABLE IF EXISTS `hca-takehome.analytics.discharge_summary`;
+DROP TABLE IF EXISTS `hca-takehome.analytics.fct_procedure`;
+DROP TABLE IF EXISTS `hca-takehome.analytics.fct_diagnosis`;
+DROP TABLE IF EXISTS `hca-takehome.analytics.fct_discharge`;
 -- Drop core tables
-DROP TABLE IF EXISTS `hca-takehome`.`core`.`patient_diagnosis`;
-DROP TABLE IF EXISTS `hca-takehome`.`core`.`patient_procedure`;
-DROP TABLE IF EXISTS `hca-takehome`.`core`.`patient`;
+DROP TABLE IF EXISTS `hca-takehome.core.patient_diagnosis`;
+DROP TABLE IF EXISTS `hca-takehome.core.patient_procedure`;
+DROP TABLE IF EXISTS `hca-takehome.core.patient`;
 -- Drop reference tables
-DROP TABLE IF EXISTS `hca-takehome`.`reference`.`dim_appendix_code`;
+DROP TABLE IF EXISTS `hca-takehome.reference.dim_appendix_code`;
 --Drop external tables
-DROP TABLE IF EXISTS `hca-takehome`.`raw_ext`.`patient_external`;
-DROP TABLE IF EXISTS `hca-takehome`.`raw_ext`.`patient_procedure_external`;
-DROP TABLE IF EXISTS `hca-takehome`.`raw_ext`.`patient_diagnosis_external`;
-DROP TABLE IF EXISTS `hca-takehome`.`raw_ext`.`appendix_a_external`;
-DROP TABLE IF EXISTS `hca-takehome`.`raw_ext`.`appendix_e_external`;
-DROP TABLE IF EXISTS `hca-takehome`.`raw_ext`.`appendix_f_external`;
-DROP TABLE IF EXISTS `hca-takehome`.`raw_ext`.`appendix_o_external`;
+DROP TABLE IF EXISTS `hca-takehome.raw_ext.patient_external`;
+DROP TABLE IF EXISTS `hca-takehome.raw_ext.patient_procedure_external`;
+DROP TABLE IF EXISTS `hca-takehome.raw_ext.patient_diagnosis_external`;
+DROP TABLE IF EXISTS `hca-takehome.raw_ext.appendix_a_external`;
+DROP TABLE IF EXISTS `hca-takehome.raw_ext.appendix_e_external`;
+DROP TABLE IF EXISTS `hca-takehome.raw_ext.appendix_f_external`;
+DROP TABLE IF EXISTS `hca-takehome.raw_ext.appendix_o_external`;
 -- Drop schemas
-DROP SCHEMA IF EXISTS `hca-takehome`.`analytics`;
-DROP SCHEMA IF EXISTS `hca-takehome`.`core`;
-DROP SCHEMA IF EXISTS `hca-takehome`.`reference`;
-DROP SCHEMA IF EXISTS `hca-takehome`.`raw_ext`;
+DROP SCHEMA IF EXISTS `hca-takehome.analytics`;
+DROP SCHEMA IF EXISTS `hca-takehome.core`;
+DROP SCHEMA IF EXISTS `hca-takehome.reference`;
+DROP SCHEMA IF EXISTS `hca-takehome.raw_ext`;

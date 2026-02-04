@@ -1,20 +1,20 @@
-CREATE SCHEMA IF NOT EXISTS `hca-takehome`.`raw_ext` OPTIONS(
+CREATE SCHEMA IF NOT EXISTS `hca-takehome.raw_ext` OPTIONS(
     description = "This schema contains raw external data ingested from CSV files for the HCA Consulting takehome exercise.",
     location = "US"
 );
-CREATE SCHEMA IF NOT EXISTS `hca-takehome`.`core` OPTIONS(
+CREATE SCHEMA IF NOT EXISTS `hca-takehome.core` OPTIONS(
     description = "This schema contains modeled relational tables from the core dataset.",
     location = "US"
 );
-CREATE SCHEMA IF NOT EXISTS `hca-takehome`.`reference` OPTIONS(
+CREATE SCHEMA IF NOT EXISTS `hca-takehome.reference` OPTIONS(
     description = "This schema contains modeled relational tables from the reference dataset.",
     location = "US"
 );
-CREATE SCHEMA IF NOT EXISTS `hca-takehome`.`analytics` OPTIONS(
+CREATE SCHEMA IF NOT EXISTS `hca-takehome.analytics` OPTIONS(
     description = "This schema contains transformed and aggregated tables for analytics purposes.",
     location = "US"
 );
-CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`patient_external` (
+CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.patient_external` (
         patient_id STRING,
         drg STRING,
         birth_date STRING,
@@ -29,7 +29,7 @@ CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`patient_external` (
         quote = '"',
         allow_quoted_newlines = TRUE
     );
-CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`patient_procedure_external` (
+CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.patient_procedure_external` (
         patient_id STRING,
         procedure_code STRING
     ) OPTIONS (
@@ -40,7 +40,7 @@ CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`patient_procedure_ext
         quote = '"',
         allow_quoted_newlines = TRUE
     );
-CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`patient_diagnosis_external` (
+CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.patient_diagnosis_external` (
         patient_id STRING,
         diag_code STRING,
         diag_rank_num INT,
@@ -53,7 +53,7 @@ CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`patient_diagnosis_ext
         quote = '"',
         allow_quoted_newlines = TRUE
     );
-CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`appendix_a_external` (
+CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.appendix_a_external` (
         code STRING,
         code_description STRING,
         code_type STRING,
@@ -66,7 +66,7 @@ CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`appendix_a_external` 
         quote = '"',
         allow_quoted_newlines = TRUE
     );
-CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`appendix_e_external` (
+CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.appendix_e_external` (
         code STRING,
         code_description STRING,
         code_type STRING,
@@ -79,7 +79,7 @@ CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`appendix_e_external` 
         quote = '"',
         allow_quoted_newlines = TRUE
     );
-CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`appendix_f_external` (
+CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.appendix_f_external` (
         code STRING,
         code_description STRING,
         code_type STRING,
@@ -92,7 +92,7 @@ CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`appendix_f_external` 
         quote = '"',
         allow_quoted_newlines = TRUE
     );
-CREATE OR REPLACE EXTERNAL TABLE `hca-takehome`.`raw_ext`.`appendix_o_external` (
+CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.appendix_o_external` (
         code STRING,
         code_description STRING,
         code_type STRING,
