@@ -1,4 +1,14 @@
 # hca-consulting-data-engineer-takehome
+
+## Technologies Used
+
+- **Google Cloud Platform (GCP)** – Cloud-native infrastructure supporting scalable analytics and data processing.
+- **Google Cloud Storage (GCS)** – Storage layer for raw CSV source files, accessed via schema-on-read external tables.
+- **BigQuery** – Primary analytical data warehouse used for ingestion, transformation, and analytics, including external tables, native fact and dimension tables, and scripted SQL for parameterized analytics.
+- **GoogleSQL (BigQuery SQL dialect)** – Used for all DDL, DML, transformations, and analytics logic, including relational modeling, deterministic surrogate key generation, and complex aggregations.
+- **Layered Data Architecture** – Raw → Core → Analytics design to separate ingestion, canonical modeling, and consumption-ready outputs.
+- **Design-Only Orchestration & Testing** – Idempotent SQL patterns and assertion-based data quality checks designed to integrate with GCP-native schedulers (e.g., Cloud Composer).
+
 ## Part 1 – Database Schema
 
 ### Assumptions
@@ -17,154 +27,201 @@ The following assumptions were made in order to design a relational schema consi
 - **All diagnoses and procedures are assumed to belong to the same encounter represented by `patient_id`.**  
   Diagnosis and procedure tables are modeled as child entities of the patient record.
 
-  ### Entity Relationship Diagram (ERD)
+- **`reference_year` is hardcoded to 2025 in dim_appendix_codes and in the corresponding joins.**  
+  The sample dataset provided is from 2025. The expectation is that the codes will update once a year on January 1st, will be appended to dim_appendix_codes with the corresponding year.
 
+
+  ### Entity Relationship Diagram (ERD)
 
 ```mermaid
 erDiagram
-  direction TB
+    direction TB
 
-  %% -----RAW EXTERNAL LAYER----
-  raw_patient_external["RAW_PATIENT_EXTERNAL"] {
-    string patient_id
-    string drg
-    string birth_date
-    string admission_date
-    string discharge_date
-    string admission_type
-  }
-  raw_patient_diagnosis_external["RAW_PATIENT_DIAGNOSIS_EXTERNAL"] {
-    string patient_id
-    string diag_code
-    int diag_rank_num
-    string present_on_admission_ind
-  }
-  raw_patient_procedure_external["RAW_PATIENT_PROCEDURE_EXTERNAL"] {
-    string patient_id
-    string procedure_code
-  }
-  raw_appendix_external["RAW_APPENDIX_EXTERNAL"] {
-    string code
-    string code_description
-    string code_type
-    string identifier
-  }
+    %% ------------ RAW EXTERNAL LAYER -----------
+    patient_external {
+        string patient_id
+        string drg
+        string birth_date
+        string admission_date
+        string discharge_date
+        string admission_type
+    }
+    patient_procedure_external {
+        string patient_id
+        string procedure_code
+    }
+    patient_diagnosis_external {
+        string patient_id
+        string diag_code
+        int diag_rank_num
+        string present_on_admission_ind
+    }
+    appendix_a_external {
+        string code
+        string code_description
+        string code_type
+        string identifier
+    }
+    appendix_e_external {
+        string code
+        string code_description
+        string code_type
+        string identifier
+    }
+    appendix_f_external {
+        string code
+        string code_description
+        string code_type
+        string identifier
+    }
+    appendix_o_external {
+        string code
+        string code_description
+        string code_type
+        string identifier
+    }
 
-  %% -----REFERENCE LAYER----
-  dim_appendix_code["DIM_APPENDIX_CODE"] {
-    string code PK
-    string code_description
-    string code_type
-    string identifier PK
-  }
+    %% ------------- REFERENCE LAYER -------------
+    dim_appendix_code {
+        string code_sk PK
+        string code
+        string code_description
+        string code_type
+        string identifier
+        int reference_year
+    }
+    dim_date {
+        int date_sk PK
+        date full_date
+        int year
+        int month
+        string year_month
+        date month_start_date
+    }
 
-  %% -----CORE LAYER----
-  patient["PATIENT"] {
-    int patient_id PK
-    string drg
-    date birth_date
-    date admission_date
-    date discharge_date
-    string admission_type
-  }
-  patient_diagnosis["PATIENT_DIAGNOSIS"] {
-    int patient_id PK, FK
-    string diag_code PK
-    int diag_rank_num
-    string present_on_admission_ind
-  }
-  patient_procedure["PATIENT_PROCEDURE"] {
-    int patient_id PK, FK
-    string procedure_code PK
-  }
 
-  %% -----ANALYTICS LAYER----
-  fct_discharge["FCT_DISCHARGE"] {
-    int patient_id PK, FK
-    date birth_date
-    int age_at_admission
-    int is_adult
-    date admission_date
-    string admission_type
-    int is_elective
-    date discharge_date
-    int days_admitted
-    string drg
-  }
-  fct_diagnosis["FCT_DIAGNOSIS"] {
-    int patient_id PK, FK
-    string diag_code PK
-    int diag_rank_num
-    string diag_type
-    int is_principal_diag
-    string present_on_admission_ind
-    int is_present_on_admission
-  }
-  fct_procedure["FCT_PROCEDURE"] {
-    int patient_id PK, FK
-    string procedure_code PK
-  }
-  discharge_summary["DISCHARGE_SUMMARY"] {
-    int patient_id PK, FK
-    date birth_date
-    int age_at_admission
-    int is_adult
-    date admission_date
-    string admission_type
-    int is_elective
-    date discharge_date
-    int days_admitted
-    string drg
-    string drg_identifier
-    string principal_diag_code
-    string principal_diag_identifier
-    int principal_diag_present_on_admission
-    string[] secondary_diag_present_on_admission_codes
-    string[] secondary_diag_present_on_admission_identifiers
-    string[] secondary_diag_not_present_on_admission_codes
-    string[] secondary_diag_not_present_on_admission_identifiers
-    string[] procedure_codes
-    string[] procedure_identifiers
-  }
+    %% ------------------ CORE LAYER -----------------
+    patient {
+        int patient_id PK
+        string drg
+        date birth_date
+        date admission_date
+        date discharge_date
+        string admission_type
+    }
+    patient_procedure {
+        int patient_id PK, FK
+        string procedure_code PK
+    }
+    patient_diagnosis {
+        int patient_id PK, FK
+        string diag_code PK
+        int diag_rank_num
+        string present_on_admission_ind
+    }
 
-  %% ---RAW TO CORE---
-  raw_patient_external ||--o| patient : "ETL"
-  raw_patient_diagnosis_external ||--o| patient_diagnosis : "ETL"
-  raw_patient_procedure_external ||--o| patient_procedure : "ETL"
-  raw_appendix_external ||--o| dim_appendix_code : "ETL"
+    %% ------------------ CORE FACTS -----------------
+    fct_discharge {
+        int patient_id PK, FK
+        date birth_date
+        int birth_date_sk FK
+        int age_at_admission
+        int is_adult
+        date admission_date
+        int admission_date_sk FK
+        string admission_type
+        int is_elective
+        date discharge_date
+        int discharge_date_sk FK
+        string drg
+        string drg_code_sk FK
+    }
+    fct_diagnosis {
+        int patient_id PK, FK
+        string diag_code PK
+        string diag_code_sk FK
+        int diag_rank_num
+        string diag_type
+        int is_principal_diag
+        string present_on_admission_ind
+        int is_present_on_admission
+    }
+    fct_procedure {
+        int patient_id PK, FK
+        string procedure_code PK
+        string procedure_code_sk FK
+    }
 
-  %% ---REFERENCE/CODE RELATIONSHIPS---
-  patient_diagnosis }o..|| dim_appendix_code : "diag_code to code"
-  patient_procedure }o..|| dim_appendix_code : "procedure_code to code"
-  fct_diagnosis }o..|| dim_appendix_code : "diag_code to code"
-  fct_procedure }o..|| dim_appendix_code : "procedure_code to code"
+    %% ----------------- ANALYTICS SUMMARY -----------------
+    discharge_summary {
+        int patient_id PK, FK
+        date birth_date
+        int birth_date_sk FK
+        int age_at_admission
+        int is_adult
+        date admission_date
+        int admission_date_sk FK
+        string admission_type
+        int is_elective
+        date discharge_date
+        int discharge_date_sk FK
+        string drg
+        string drg_code_sk FK
+        string drg_identifier
+        struct principal_diagnosis
+        array secondary_diagnoses
+        array procedures
+    }
 
-  %% ---CORE LAYER RELATIONSHIPS---
-  patient ||--o| patient_diagnosis : ""
-  patient ||--o| patient_procedure : ""
+    %% ------------ RELATIONSHIPS --------------
 
-  %% ---ANALYTICS LAYER RELATIONSHIPS---
-  patient ||--o| fct_discharge : ""
-  patient ||--o| fct_diagnosis : ""
-  patient ||--o| fct_procedure : ""
-  fct_discharge ||--o| fct_diagnosis : "by patient_id"
-  fct_discharge ||--o| fct_procedure : "by patient_id"
-  fct_discharge ||--|| discharge_summary : "by patient_id"
+    %% Raw external to staging layers
+    patient_external ||--o| patient : "ETL"
+    patient_procedure_external ||--o| patient_procedure : "ETL"
+    patient_diagnosis_external ||--o| patient_diagnosis : "ETL"
+    appendix_a_external ||--o| dim_appendix_code : "ETL"
+    appendix_e_external ||--o| dim_appendix_code : "ETL"
+    appendix_f_external ||--o| dim_appendix_code : "ETL"
+    appendix_o_external ||--o| dim_appendix_code : "ETL"
 
-  %% ---DISCHARGE SUMMARY CODE RELATIONSHIPS---
-  discharge_summary }o..|| dim_appendix_code : "principal_diag_code, drg (via identifier/joins)"
-  discharge_summary }o..|| dim_appendix_code : "procedure_codes (array joins)"
+    %% Reference FKs
+    fct_discharge }o--|| dim_date : "birth_date_sk, admission_date_sk, discharge_date_sk"
+    fct_discharge }o--|| dim_appendix_code : "drg_code_sk"
+    fct_diagnosis }o--|| dim_appendix_code : "diag_code_sk"
+    fct_procedure }o--|| dim_appendix_code : "procedure_code_sk"
+    discharge_summary }o--|| dim_date : "birth_date_sk, admission_date_sk, discharge_date_sk"
+    discharge_summary }o--|| dim_appendix_code : "drg_code_sk"
 
-  %% Color Classes
-  classDef raw fill:#D1B3FF,stroke:#8041D9,stroke-width:2px
-  classDef core fill:#B3DAFF,stroke:#1F78B4,stroke-width:2px
-  classDef fact fill:#FFD580,stroke:#FFA600,stroke-width:2px
-  classDef dim fill:#B3FFC6,stroke:#23A769,stroke-width:2px
-  classDef summary fill:#FFEAAA,stroke:#C09800,stroke-width:2px
+    %% Core to fact relationships
+    patient ||--o| fct_discharge : ""
+    patient ||--o| fct_diagnosis : ""
+    patient ||--o| fct_procedure : ""
+    patient ||--o| patient_procedure : ""
+    patient ||--o| patient_diagnosis : ""
 
-  class raw_patient_external,raw_patient_diagnosis_external,raw_patient_procedure_external,raw_appendix_external raw
-  class patient,patient_diagnosis,patient_procedure core
-  class fct_discharge,fct_diagnosis,fct_procedure fact
-  class dim_appendix_code dim
-  class discharge_summary summary
-```
+    %% Facts to summary
+    fct_discharge ||--o| discharge_summary : ""
+
+    %% ------------- COLOR CLASSES --------------
+    classDef raw fill:#D1B3FF,stroke:#8041D9,stroke-width:2px
+    classDef ref fill:#B3FFC6,stroke:#23A769,stroke-width:2px
+    classDef core fill:#B3DAFF,stroke:#1F78B4,stroke-width:2px
+    classDef fact fill:#FFD580,stroke:#FFA600,stroke-width:2px
+    classDef summary fill:#FFEAAA,stroke:#C09800,stroke-width:2px
+
+    class patient_external,patient_procedure_external,patient_diagnosis_external,appendix_a_external,appendix_e_external,appendix_f_external,appendix_o_external raw
+    class dim_appendix_code,dim_date ref
+    class patient,patient_procedure,patient_diagnosis core
+    class fct_discharge,fct_diagnosis,fct_procedure fact
+    class discharge_summary summary
+```    
+  
+## Part 2 – PSI-13 monthly output (2025)
+
+### Description
+
+The analytics.psi13_monthly_metrics table is built via a scripted BigQuery SQL file using a parameterized list of PSI-13 sepsis diagnosis codes and produces month-level numerator, denominator, and rate metrics.
+
+## Part 3 - Design Only Nightly ETL for a rolling 12-month window
+
+Reference `etl_design.md`

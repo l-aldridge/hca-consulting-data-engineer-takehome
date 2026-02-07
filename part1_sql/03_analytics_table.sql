@@ -31,7 +31,7 @@ CREATE OR REPLACE TABLE `hca-takehome.analytics.discharge_summary` (
         FOREIGN KEY (admission_date_sk) REFERENCES `hca-takehome.reference.dim_date` (date_sk) NOT ENFORCED,
         FOREIGN KEY (discharge_date_sk) REFERENCES `hca-takehome.reference.dim_date` (date_sk) NOT ENFORCED,
         FOREIGN KEY (drg_code_sk) REFERENCES `hca-takehome.reference.dim_appendix_code` (code_sk) NOT ENFORCED
-    );
+    ) PARTITION BY DATE_TRUNC(admission_date, MONTH);
 INSERT INTO `hca-takehome.analytics.discharge_summary` (
         patient_id,
         birth_date,
