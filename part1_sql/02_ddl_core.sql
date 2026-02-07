@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `hca-takehome.core.patient` (
     discharge_date DATE,
     admission_type STRING,
     PRIMARY KEY (patient_id) NOT ENFORCED
-) PARTITION BY DATE_TRUNC(admission_date, MONTH);
+) PARTITION BY DATE_TRUNC(discharge_date, MONTH);
 
 CREATE TABLE IF NOT EXISTS `hca-takehome.core.patient_procedure` (
     patient_id INT NOT NULL,
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS `hca-takehome.core.fct_discharge` (
     FOREIGN KEY (birth_date_sk) REFERENCES `hca-takehome.reference.dim_date` (date_sk) NOT ENFORCED,
     FOREIGN KEY (admission_date_sk) REFERENCES `hca-takehome.reference.dim_date` (date_sk) NOT ENFORCED,
     FOREIGN KEY (discharge_date_sk) REFERENCES `hca-takehome.reference.dim_date` (date_sk) NOT ENFORCED,
-    FOREIGN KEY (drg_code_sk) REFERENCES `hca-takehome.reference.dim_appendix_code` (code_sk) NOT ENFORCED
-) PARTITION BY DATE_TRUNC(admission_date, MONTH);
+    FOREIGN KEY (drg_code_sk) REFERENCES `hca-takehome.reference.dim_code` (code_sk) NOT ENFORCED
+) PARTITION BY DATE_TRUNC(discharge_date, MONTH) CLUSTER BY patient_id;
 
 CREATE TABLE IF NOT EXISTS `hca-takehome.core.fct_diagnosis` (
     patient_id INT NOT NULL,
@@ -56,10 +56,10 @@ CREATE TABLE IF NOT EXISTS `hca-takehome.core.fct_diagnosis` (
     is_principal_diag INT NOT NULL,
     present_on_admission_ind STRING,
     is_present_on_admission INT NOT NULL,
-    PRIMARY KEY (patient_id, diag_code) NOT ENFORCED,
+    PRIMARY KEY (patient_id, diag_code_sk) NOT ENFORCED,
     FOREIGN KEY (patient_id) REFERENCES `hca-takehome.core.patient` (patient_id) NOT ENFORCED,
-    FOREIGN KEY (diag_code_sk) REFERENCES `hca-takehome.reference.dim_appendix_code` (code_sk) NOT ENFORCED
-);
+    FOREIGN KEY (diag_code_sk) REFERENCES `hca-takehome.reference.dim_code` (code_sk) NOT ENFORCED
+) CLUSTER BY patient_id;
 
 CREATE TABLE IF NOT EXISTS `hca-takehome.core.fct_procedure` (
     patient_id INT NOT NULL,
@@ -67,8 +67,8 @@ CREATE TABLE IF NOT EXISTS `hca-takehome.core.fct_procedure` (
     procedure_code_sk STRING NOT NULL,
     PRIMARY KEY (patient_id, procedure_code) NOT ENFORCED,
     FOREIGN KEY (patient_id) REFERENCES `hca-takehome.core.patient` (patient_id) NOT ENFORCED,
-    FOREIGN KEY (procedure_code_sk) REFERENCES `hca-takehome.reference.dim_appendix_code` (code_sk) NOT ENFORCED
-);
+    FOREIGN KEY (procedure_code_sk) REFERENCES `hca-takehome.reference.dim_code` (code_sk) NOT ENFORCED
+) CLUSTER BY patient_id;
 
 -- remove any existing data to prevent duplicates
 TRUNCATE TABLE `hca-takehome.core.patient`;
@@ -116,7 +116,7 @@ SELECT CAST(patient_id AS INT) AS patient_id,
     present_on_admission_ind
 FROM `hca-takehome.raw_ext.patient_diagnosis_external`;
 
---for the purposes of the takehome the JOIN with dim_appendix_code.reference year
+--for the purposes of the takehome the JOIN with dim_code.reference year
 --is hardcoded to 2025. In a production scenario, this would be dynamic based on year of discharge_date.
 INSERT INTO `hca-takehome.core.fct_discharge` (
         patient_id,
@@ -134,7 +134,7 @@ INSERT INTO `hca-takehome.core.fct_discharge` (
         drg_code_sk
     )
 SELECT p.patient_id,
-    COALESCE(birth_date, DATE '1900-01-01') AS birth_date,
+    COALESCE(p.birth_date, DATE '1900-01-01') AS birth_date,
     COALESCE(bd.date_sk, -1) AS birth_date_sk,
     DATE_DIFF(p.admission_date, p.birth_date, YEAR) AS age_at_admission,
     CASE
@@ -150,13 +150,20 @@ SELECT p.patient_id,
     END AS is_elective,
     COALESCE(p.discharge_date, DATE '1900-01-01') AS discharge_date,
     COALESCE(dd.date_sk, -1) AS discharge_date_sk,
-    COALESCE(drg, 'UNKNOWN') AS drg,
-    COALESCE(dc.code_sk, 'UNKNOWN') AS drg_code_sk
-FROM `hca-takehome.core.patient` AS p
-    LEFT JOIN `hca-takehome.reference.dim_date` AS bd ON COALESCE(birth_date, DATE '1900-01-01') = bd.full_date
-    LEFT JOIN `hca-takehome.reference.dim_date` AS ad ON COALESCE(admission_date, DATE '1900-01-01') = ad.full_date
-    LEFT JOIN `hca-takehome.reference.dim_date` AS dd ON COALESCE(discharge_date, DATE '1900-01-01') = dd.full_date
-    LEFT JOIN `hca-takehome.reference.dim_appendix_code` AS dc ON COALESCE(p.drg, 'UNKNOWN') = dc.code
+    COALESCE(p.drg, 'UNKNOWN') AS drg,
+    COALESCE(
+        dc.code_sk,
+        TO_HEX(
+            SHA256(
+                CONCAT('DRG', '|', 'UNKNOWN', '|', CAST(2025 AS STRING))
+            )
+        )
+    ) AS drg_code_sk
+FROM `hca-takehome.core.patient` p
+    LEFT JOIN `hca-takehome.reference.dim_date` bd ON COALESCE(p.birth_date, DATE '1900-01-01') = bd.full_date
+    LEFT JOIN `hca-takehome.reference.dim_date` ad ON COALESCE(p.admission_date, DATE '1900-01-01') = ad.full_date
+    LEFT JOIN `hca-takehome.reference.dim_date` dd ON COALESCE(p.discharge_date, DATE '1900-01-01') = dd.full_date
+    LEFT JOIN `hca-takehome.reference.dim_code` dc ON COALESCE(p.drg, 'UNKNOWN') = dc.code
     AND dc.code_type = 'DRG'
     AND dc.reference_year = 2025;
 
@@ -172,7 +179,20 @@ INSERT INTO `hca-takehome.core.fct_diagnosis` (
     )
 SELECT pd.patient_id,
     COALESCE(pd.diag_code, 'UNKNOWN') AS diag_code,
-    COALESCE(dc.code_sk, 'UNKNOWN') AS diag_code_sk,
+    COALESCE(
+        dc.code_sk,
+        TO_HEX(
+            SHA256(
+                CONCAT(
+                    'Diagnosis',
+                    '|',
+                    'UNKNOWN',
+                    '|',
+                    CAST(2025 AS STRING)
+                )
+            )
+        )
+    ) AS diag_code_sk,
     pd.diag_rank_num,
     CASE
         WHEN pd.diag_rank_num = 1 THEN 'Principal'
@@ -190,7 +210,7 @@ SELECT pd.patient_id,
     END AS is_present_on_admission
 FROM `hca-takehome.core.patient_diagnosis` pd
     LEFT JOIN `hca-takehome.core.patient` p ON pd.patient_id = p.patient_id
-    LEFT JOIN `hca-takehome.reference.dim_appendix_code` AS dc ON COALESCE(pd.diag_code, 'UNKNOWN') = dc.code
+    LEFT JOIN `hca-takehome.reference.dim_code` dc ON COALESCE(pd.diag_code, 'UNKNOWN') = dc.code
     AND dc.code_type = 'Diagnosis'
     AND dc.reference_year = 2025;
 
@@ -200,10 +220,23 @@ INSERT INTO `hca-takehome.core.fct_procedure` (
         procedure_code_sk
     )
 SELECT pp.patient_id,
-    pp.procedure_code,
-    COALESCE(pc.code_sk, 'UNKNOWN') AS procedure_code_sk
+    COALESCE(pp.procedure_code, 'UNKNOWN') AS procedure_code,
+    COALESCE(
+        pc.code_sk,
+        TO_HEX(
+            SHA256(
+                CONCAT(
+                    'Procedure',
+                    '|',
+                    'UNKNOWN',
+                    '|',
+                    CAST(2025 AS STRING)
+                )
+            )
+        )
+    ) AS procedure_code_sk
 FROM `hca-takehome.core.patient_procedure` pp
     LEFT JOIN `hca-takehome.core.patient` p ON pp.patient_id = p.patient_id
-    LEFT JOIN `hca-takehome.reference.dim_appendix_code` AS pc ON COALESCE(pp.procedure_code, 'UNKNOWN') = pc.code
+    LEFT JOIN `hca-takehome.reference.dim_code` pc ON COALESCE(pp.procedure_code, 'UNKNOWN') = pc.code
     AND pc.code_type = 'Procedure'
     AND pc.reference_year = 2025;

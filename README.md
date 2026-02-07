@@ -37,7 +37,7 @@ The following assumptions were made in order to design a relational schema consi
 erDiagram
     direction TB
 
-    %% ------------ RAW EXTERNAL LAYER -----------
+    %% ---------- RAW LAYER ----------
     patient_external {
         string patient_id
         string drg
@@ -81,13 +81,27 @@ erDiagram
         string identifier
     }
 
-    %% ------------- REFERENCE LAYER -------------
-    dim_appendix_code {
-        string code_sk PK
+    %% ---------- REFERENCE LAYER ----------
+    ref_appendix_code_identifier_map {
+        string code_identifier_sk PK
         string code
         string code_description
         string code_type
         string identifier
+        int reference_year
+    }
+    dim_code {
+        string code_sk PK
+        string code
+        string code_type
+        string code_description
+        int reference_year
+    }
+    bridge_code_identifier {
+        string code_sk PK
+        string identifier_sk PK
+        string identifier
+        string code_type
         int reference_year
     }
     dim_date {
@@ -99,8 +113,7 @@ erDiagram
         date month_start_date
     }
 
-
-    %% ------------------ CORE LAYER -----------------
+    %% ------------- CORE LAYER -----------
     patient {
         int patient_id PK
         string drg
@@ -119,8 +132,6 @@ erDiagram
         int diag_rank_num
         string present_on_admission_ind
     }
-
-    %% ------------------ CORE FACTS -----------------
     fct_discharge {
         int patient_id PK, FK
         date birth_date
@@ -138,8 +149,8 @@ erDiagram
     }
     fct_diagnosis {
         int patient_id PK, FK
-        string diag_code PK
-        string diag_code_sk FK
+        string diag_code
+        string diag_code_sk PK, FK
         int diag_rank_num
         string diag_type
         int is_principal_diag
@@ -148,11 +159,11 @@ erDiagram
     }
     fct_procedure {
         int patient_id PK, FK
-        string procedure_code PK
-        string procedure_code_sk FK
+        string procedure_code
+        string procedure_code_sk PK, FK
     }
 
-    %% ----------------- ANALYTICS SUMMARY -----------------
+    %% ---------- ANALYTICS LAYER ----------
     discharge_summary {
         int patient_id PK, FK
         date birth_date
@@ -167,32 +178,36 @@ erDiagram
         int discharge_date_sk FK
         string drg
         string drg_code_sk FK
-        string drg_identifier
+        string[] drg_identifiers
         struct principal_diagnosis
         array secondary_diagnoses
         array procedures
     }
 
-    %% ------------ RELATIONSHIPS --------------
-
-    %% Raw external to staging layers
+    %% ------------------ RELATIONSHIPS ---------------------
+    %% RAW to core load
     patient_external ||--o| patient : "ETL"
     patient_procedure_external ||--o| patient_procedure : "ETL"
     patient_diagnosis_external ||--o| patient_diagnosis : "ETL"
-    appendix_a_external ||--o| dim_appendix_code : "ETL"
-    appendix_e_external ||--o| dim_appendix_code : "ETL"
-    appendix_f_external ||--o| dim_appendix_code : "ETL"
-    appendix_o_external ||--o| dim_appendix_code : "ETL"
+    appendix_a_external ||--o| ref_appendix_code_identifier_map : "ETL"
+    appendix_e_external ||--o| ref_appendix_code_identifier_map : "ETL"
+    appendix_f_external ||--o| ref_appendix_code_identifier_map : "ETL"
+    appendix_o_external ||--o| ref_appendix_code_identifier_map : "ETL"
 
     %% Reference FKs
     fct_discharge }o--|| dim_date : "birth_date_sk, admission_date_sk, discharge_date_sk"
-    fct_discharge }o--|| dim_appendix_code : "drg_code_sk"
-    fct_diagnosis }o--|| dim_appendix_code : "diag_code_sk"
-    fct_procedure }o--|| dim_appendix_code : "procedure_code_sk"
+    fct_discharge }o--|| dim_code : "drg_code_sk"
+    fct_diagnosis }o--|| dim_code : "diag_code_sk"
+    fct_procedure }o--|| dim_code : "procedure_code_sk"
     discharge_summary }o--|| dim_date : "birth_date_sk, admission_date_sk, discharge_date_sk"
-    discharge_summary }o--|| dim_appendix_code : "drg_code_sk"
+    discharge_summary }o--|| dim_code : "drg_code_sk"
 
-    %% Core to fact relationships
+    %% Bridge/table relationships (reference)
+    ref_appendix_code_identifier_map ||--o| dim_code : "code, code_type, reference_year"
+    bridge_code_identifier ||--o| dim_code : "code_sk"
+    bridge_code_identifier ||--o| ref_appendix_code_identifier_map : "identifier"
+
+    %% Core to fact
     patient ||--o| fct_discharge : ""
     patient ||--o| fct_diagnosis : ""
     patient ||--o| fct_procedure : ""
@@ -202,15 +217,15 @@ erDiagram
     %% Facts to summary
     fct_discharge ||--o| discharge_summary : ""
 
-    %% ------------- COLOR CLASSES --------------
-    classDef raw fill:#D1B3FF,stroke:#8041D9,stroke-width:2px
-    classDef ref fill:#B3FFC6,stroke:#23A769,stroke-width:2px
-    classDef core fill:#B3DAFF,stroke:#1F78B4,stroke-width:2px
-    classDef fact fill:#FFD580,stroke:#FFA600,stroke-width:2px
-    classDef summary fill:#FFEAAA,stroke:#C09800,stroke-width:2px
+    %% ----------------- COLOR CLASSES -----------------
+    classDef raw fill:#D1B3FF,stroke:#8041D9,stroke-width:2px;
+    classDef ref fill:#B3FFC6,stroke:#23A769,stroke-width:2px;
+    classDef core fill:#B3DAFF,stroke:#1F78B4,stroke-width:2px;
+    classDef fact fill:#FFD580,stroke:#FFA600,stroke-width:2px;
+    classDef summary fill:#FFEAAA,stroke:#C09800,stroke-width:2px;
 
     class patient_external,patient_procedure_external,patient_diagnosis_external,appendix_a_external,appendix_e_external,appendix_f_external,appendix_o_external raw
-    class dim_appendix_code,dim_date ref
+    class ref_appendix_code_identifier_map,dim_code,bridge_code_identifier,dim_date ref
     class patient,patient_procedure,patient_diagnosis core
     class fct_discharge,fct_diagnosis,fct_procedure fact
     class discharge_summary summary
