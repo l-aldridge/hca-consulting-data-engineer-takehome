@@ -9,6 +9,10 @@
 - **Layered Data Architecture** – Raw → Core → Analytics design to separate ingestion, canonical modeling, and consumption-ready outputs.
 - **Design-Only Orchestration & Testing** – Idempotent SQL patterns and assertion-based data quality checks designed to integrate with GCP-native schedulers (e.g., Cloud Composer).
 
+## Quick Start
+
+👉 **[How to Run This Project in BigQuery](#how-to-run-this-project-in-bigquery)**
+
 ## Part 1 – Database Schema
 
 ### Assumptions
@@ -240,3 +244,68 @@ The analytics.psi13_monthly_metrics table is built via a scripted BigQuery SQL f
 ## Part 3 - Design Only Nightly ETL for a rolling 12-month window
 
 Reference `etl_design.md`
+
+## How to Run This Project in BigQuery
+
+This project is designed to be executed directly in **Google BigQuery** using the BigQuery SQL editor.  
+All tables are created under the `hca-takehome` project and must be run in the order described below.
+
+---
+
+### Prerequisites
+- Access to a GCP project with **BigQuery enabled**
+- Permissions to create datasets and tables
+- Raw appendix source files (Appendix A, E, F, O) available in Google Cloud Storage Buckets (hca-analytics-raw-dev/core for core and gs://hca-analytics-raw-dev/reference/ for reference datasets)
+- BigQuery Console or `bq` CLI access
+
+---
+
+### Execution Order
+
+Run the SQL files in the following order:
+
+1. **Create datasets**
+00_create_datasets.sql
+
+Creates required datasets:
+- `raw_ext`
+- `reference`
+- `core`
+- `analytics` 
+
+2. **Load reference data**
+01_ddl_reference.sql
+- Loads annual appendix reference data
+- Builds reference tables (`dim_code`, `bridge_code_identifier`, `dim_date`)
+
+3. **Create core fact tables**
+02_ddl_core.sql
+- Creates modeled fact tables:
+  - `core.fct_discharge`
+  - `core.fct_diagnosis`
+  - `core.fct_procedure`
+
+4. **Build analytics / PSI-13 outputs**
+03_analytics_table.sql
+- Computes PSI-13 numerator and denominator logic
+- Builds rolling 12-month PSI-13 metrics
+- Persists numerator patient list for auditability
+
+### Validating the Results
+
+After all scripts run successfully, validate with:
+
+```sql
+SELECT *
+FROM `hca-takehome.analytics.psi13_monthly_metrics`
+ORDER BY year_month;
+```
+
+You should see at most 12 rows, one per reporting month.
+
+### Resetting the Environment
+
+To drop all objects and rerun from scratch:
+99_teardown.sql
+Then re-run the scripts in the execution order above.
+
