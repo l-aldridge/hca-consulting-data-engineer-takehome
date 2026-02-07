@@ -287,9 +287,9 @@ Creates required datasets:
 
 4. **Build analytics / PSI-13 outputs**
 03_analytics_table.sql
+- Creates discharge_summary table for analysis
+psi13_monthly_metrics.sql
 - Computes PSI-13 numerator and denominator logic
-- Builds rolling 12-month PSI-13 metrics
-- Persists numerator patient list for auditability
 
 ### Validating the Results
 
