@@ -84,6 +84,12 @@ erDiagram
         string code_type
         string identifier
     }
+    sepsis_codes {
+        string code
+        string code_description
+        string code_type
+        string identifier
+    }
 
     %% ---------- REFERENCE LAYER ----------
     ref_appendix_code_identifier_map {
@@ -197,6 +203,7 @@ erDiagram
     appendix_e_external ||--o| ref_appendix_code_identifier_map : "ETL"
     appendix_f_external ||--o| ref_appendix_code_identifier_map : "ETL"
     appendix_o_external ||--o| ref_appendix_code_identifier_map : "ETL"
+    sepsis_codes ||--o| ref_appendix_code_identifier_map : "ETL"
 
     %% Reference FKs
     fct_discharge }o--|| dim_date : "birth_date_sk, admission_date_sk, discharge_date_sk"
@@ -228,7 +235,7 @@ erDiagram
     classDef fact fill:#FFD580,stroke:#FFA600,stroke-width:2px;
     classDef summary fill:#FFEAAA,stroke:#C09800,stroke-width:2px;
 
-    class patient_external,patient_procedure_external,patient_diagnosis_external,appendix_a_external,appendix_e_external,appendix_f_external,appendix_o_external raw
+    class patient_external,patient_procedure_external,patient_diagnosis_external,appendix_a_external,appendix_e_external,appendix_f_external,appendix_o_external, sepsis_codes raw
     class ref_appendix_code_identifier_map,dim_code,bridge_code_identifier,dim_date ref
     class patient,patient_procedure,patient_diagnosis core
     class fct_discharge,fct_diagnosis,fct_procedure fact
