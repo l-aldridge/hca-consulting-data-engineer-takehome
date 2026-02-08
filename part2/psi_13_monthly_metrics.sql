@@ -1,82 +1,80 @@
-CREATE OR REPLACE TABLE `hca-takehome.analytics.psi13_monthly_metrics` AS WITH -- Sepsis diagnosis codes sourced from reference tables (identifier = 'SEPTI2D')
-  sepsis_diag_codes AS (
-    SELECT DISTINCT b.code_sk
-    FROM `hca-takehome.reference.bridge_code_identifier` b
-    WHERE b.code_type = 'Diagnosis'
-      AND b.reference_year = 2025
-      AND b.identifier = 'SEPTI2D'
-  ),
-  denominator_inclusions AS (
-    SELECT DISTINCT d.patient_id,
-      rd.year_month
-    FROM `hca-takehome.core.fct_discharge` d
-      JOIN `hca-takehome.reference.dim_date` rd ON rd.date_sk = d.discharge_date_sk
-    WHERE d.is_elective = 1
-      AND d.is_adult = 1
-      AND rd.year = 2025
-      AND d.drg IS NOT NULL
-      AND d.drg != '999' -- DRG must be tagged SURGI2R (via bridge)
+-- Sepsis diagnosis codes sourced from reference tables (identifier = 'SEPTI2D')
+sepsis_diag_codes AS (
+  CREATE OR REPLACE TABLE `hca-takehome.analytics.psi13_monthly_metrics` AS WITH
+  SELECT DISTINCT b.code_sk
+  FROM `hca-takehome.reference.bridge_code_identifier` b
+  WHERE b.code_type = 'Diagnosis'
+    AND b.reference_year = 2025
+    AND b.identifier = 'SEPTI2D'
+),
+denominator_inclusions AS (
+  SELECT DISTINCT d.patient_id,
+    rd.year_month
+  FROM `hca-takehome.core.fct_discharge` d
+    JOIN `hca-takehome.reference.dim_date` rd ON rd.date_sk = d.discharge_date_sk
+  WHERE d.is_elective = 1
+    AND d.is_adult = 1
+    AND rd.year = 2025
+    AND d.drg IS NOT NULL
+    AND d.drg != '999'
+    AND EXISTS (
+      SELECT 1
+      FROM `hca-takehome.reference.bridge_code_identifier` b
+      WHERE b.code_sk = d.drg_code_sk
+        AND b.code_type = 'DRG'
+        AND b.reference_year = 2025
+        AND b.identifier = 'SURGI2R'
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM `hca-takehome.core.fct_procedure` p
+      WHERE p.patient_id = d.patient_id
+        AND EXISTS (
+          SELECT 1
+          FROM `hca-takehome.reference.bridge_code_identifier` b
+          WHERE b.code_sk = p.procedure_code_sk
+            AND b.code_type = 'Procedure'
+            AND b.reference_year = 2025
+            AND b.identifier = 'ORPROC'
+        )
+    )
+),
+denominator_exclusions AS (
+  SELECT DISTINCT d.patient_id
+  FROM `hca-takehome.core.fct_discharge` d
+    LEFT JOIN `hca-takehome.core.fct_diagnosis` di ON di.patient_id = d.patient_id
+  WHERE -- Exclude if principal diagnosis has any of these identifiers
+    (
+      di.is_principal_diag = 1
       AND EXISTS (
         SELECT 1
         FROM `hca-takehome.reference.bridge_code_identifier` b
-        WHERE b.code_sk = d.drg_code_sk
-          AND b.code_type = 'DRG'
+        WHERE b.code_sk = di.diag_code_sk
+          AND b.code_type = 'Diagnosis'
           AND b.reference_year = 2025
-          AND b.identifier = 'SURGI2R'
-      ) -- Must have at least one procedure tagged ORPROC (via bridge)
-      AND EXISTS (
-        SELECT 1
-        FROM `hca-takehome.core.fct_procedure` p
-        WHERE p.patient_id = d.patient_id
-          AND EXISTS (
-            SELECT 1
-            FROM `hca-takehome.reference.bridge_code_identifier` b
-            WHERE b.code_sk = p.procedure_code_sk
-              AND b.code_type = 'Procedure'
-              AND b.reference_year = 2025
-              AND b.identifier = 'ORPROC'
+          AND b.identifier IN (
+            'SEPTI2D',
+            'INFECID',
+            'MDC14PRINDX',
+            'MDC15PRINDX'
           )
       )
-  ),
-  denominator_exclusions AS (
-    SELECT DISTINCT d.patient_id
-    FROM `hca-takehome.core.fct_discharge` d
-      LEFT JOIN `hca-takehome.core.fct_diagnosis` di ON di.patient_id = d.patient_id
-    WHERE -- Exclude if principal diagnosis has any of these identifiers
-      (
-        di.is_principal_diag = 1
-        AND EXISTS (
-          SELECT 1
-          FROM `hca-takehome.reference.bridge_code_identifier` b
-          WHERE b.code_sk = di.diag_code_sk
-            AND b.code_type = 'Diagnosis'
-            AND b.reference_year = 2025
-            AND b.identifier IN (
-              'SEPTI2D',
-              'INFECID',
-              'MDC14PRINDX',
-              'MDC15PRINDX'
-            )
-        )
+    ) (
+      di.is_principal_diag = 0
+      AND di.is_present_on_admission = 1
+      AND EXISTS (
+        SELECT 1
+        FROM `hca-takehome.reference.bridge_code_identifier` b
+        WHERE b.code_sk = di.diag_code_sk
+          AND b.code_type = 'Diagnosis'
+          AND b.reference_year = 2025
+          AND b.identifier IN ('SEPTI2D', 'INFECID')
       )
-      OR -- Exclude if secondary dx POA=Y and tagged SEPTI2D or INFECID
-      (
-        di.is_principal_diag = 0
-        AND di.is_present_on_admission = 1
-        AND EXISTS (
-          SELECT 1
-          FROM `hca-takehome.reference.bridge_code_identifier` b
-          WHERE b.code_sk = di.diag_code_sk
-            AND b.code_type = 'Diagnosis'
-            AND b.reference_year = 2025
-            AND b.identifier IN ('SEPTI2D', 'INFECID')
-        )
-      )
-      OR d.drg IS NULL
-      OR d.drg = '999'
-  )
+    )
+    OR d.drg IS NULL
+    OR d.drg = '999'
+)
 SELECT di.year_month AS MONTH,
-  -- Numerator: denominator patients with ANY SECONDARY sepsis diagnosis (SEPTI2D)
   COUNT(
     DISTINCT IF(
       dd.is_principal_diag = 0
@@ -90,7 +88,6 @@ SELECT di.year_month AS MONTH,
     )
   ) AS numerator,
   COUNT(DISTINCT di.patient_id) AS denominator,
-  -- Rate as proportion (keep identical behavior to your original query)
   ROUND(
     SAFE_DIVIDE(
       COUNT(
