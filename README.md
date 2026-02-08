@@ -290,10 +290,6 @@ Creates required datasets:
 - Creates discharge_summary table for analysis
 psi13_monthly_metrics.sql
 - Computes PSI-13 numerator and denominator logic
-<<<<<<< HEAD
-=======
-- Creates discharge_summary table for analysis  
->>>>>>> c68ffce (updated calculation for age_at_birth)
 
 ### Validating the Results
 
