@@ -255,7 +255,8 @@ All tables are created under the `hca-takehome` project and must be run in the o
 ### Prerequisites
 - Access to a GCP project with **BigQuery enabled**
 - Permissions to create datasets and tables
-- Raw appendix source files (Appendix A, E, F, O) available in Google Cloud Storage Buckets (hca-analytics-raw-dev/core for core and gs://hca-analytics-raw-dev/reference/ for reference datasets)
+- Create csv files with sepsis codes (columns: code, code_description, code_type, identifier)
+- Raw appendix source files (Appendix A, E, F, O, sepsis_codes) available in Google Cloud Storage Buckets (hca-analytics-raw-dev/core for core and gs://hca-analytics-raw-dev/reference/ for reference datasets)
 - BigQuery Console or `bq` CLI access
 
 ---
