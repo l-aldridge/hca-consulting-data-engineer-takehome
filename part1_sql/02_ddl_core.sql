@@ -136,7 +136,12 @@ INSERT INTO `hca-takehome.core.fct_discharge` (
 SELECT p.patient_id,
     COALESCE(p.birth_date, DATE '1900-01-01') AS birth_date,
     COALESCE(bd.date_sk, -1) AS birth_date_sk,
-    DATE_DIFF(p.admission_date, p.birth_date, YEAR) AS age_at_admission,
+    --subtract 1 from age at admission if admission date is before birthday in that year to avoid overcounting age
+    DATE_DIFF(p.admission_date, p.birth_date, YEAR) - IF(
+        FORMAT_DATE('%m%d', p.admission_date) < FORMAT_DATE('%m%d', p.birth_date),
+        1,
+        0
+    ) AS age_at_admission,
     CASE
         WHEN DATE_DIFF(p.admission_date, p.birth_date, YEAR) >= 18 THEN 1
         ELSE 0

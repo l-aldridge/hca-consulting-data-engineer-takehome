@@ -134,7 +134,27 @@ SELECT TO_HEX(
     code_type,
     identifier,
     2025 AS reference_year
-FROM `hca-takehome.raw_ext.appendix_o_external`;
+FROM `hca-takehome.raw_ext.appendix_o_external`
+UNION ALL
+SELECT TO_HEX(
+        SHA256(
+            CONCAT(
+                code,
+                '|',
+                identifier,
+                '|',
+                code_type,
+                '|',
+                '2025'
+            )
+        )
+    ) AS code_identifier_sk,
+    code,
+    code_description,
+    code_type,
+    identifier,
+    2025 AS reference_year
+FROM `hca-takehome.raw_ext.sepsis_codes`;
 
 -- CREATE row for NULL values for FK references
 INSERT INTO `hca-takehome.reference.ref_appendix_code_identifier_map` (

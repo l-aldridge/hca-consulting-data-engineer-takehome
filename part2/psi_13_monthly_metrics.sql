@@ -1,15 +1,16 @@
--- list of sepsis codes from psi13.pdf. In production, pull these from a versioned reference table
-DECLARE sepsis_codes ARRAY < STRING > DEFAULT [
-  'A021','A4151','A227','A4152','A267','A4153','A327','A4154','A400','A4159',
-  'A401','A4181','A403','A4189','A408','A419','A409','A427','A4101','A5486',
-  'A4102','B377','A411','R6520','A412','R6521','A413','T8112XA','A414','T8144XA','A4150'
-];
-
-CREATE OR REPLACE TABLE `hca-takehome.analytics.psi13_monthly_metrics` AS WITH denominator_inclusions AS (
+CREATE OR REPLACE TABLE `hca-takehome.analytics.psi13_monthly_metrics` AS WITH -- Sepsis diagnosis codes sourced from reference tables (identifier = 'SEPTI2D')
+  sepsis_diag_codes AS (
+    SELECT DISTINCT b.code_sk
+    FROM `hca-takehome.reference.bridge_code_identifier` b
+    WHERE b.code_type = 'Diagnosis'
+      AND b.reference_year = 2025
+      AND b.identifier = 'SEPTI2D'
+  ),
+  denominator_inclusions AS (
     SELECT DISTINCT d.patient_id,
       rd.year_month
     FROM `hca-takehome.core.fct_discharge` d
-      JOIN `hca-takehome.reference.dim_date` rd ON rd.date_sk = d.discharge_date_sk -- elective adult surgical discharges with OR procedure, in 2025
+      JOIN `hca-takehome.reference.dim_date` rd ON rd.date_sk = d.discharge_date_sk
     WHERE d.is_elective = 1
       AND d.is_adult = 1
       AND rd.year = 2025
@@ -22,7 +23,7 @@ CREATE OR REPLACE TABLE `hca-takehome.analytics.psi13_monthly_metrics` AS WITH d
           AND b.code_type = 'DRG'
           AND b.reference_year = 2025
           AND b.identifier = 'SURGI2R'
-      ) -- must have at least one procedure tagged ORPROC (via bridge)
+      ) -- Must have at least one procedure tagged ORPROC (via bridge)
       AND EXISTS (
         SELECT 1
         FROM `hca-takehome.core.fct_procedure` p
@@ -50,7 +51,12 @@ CREATE OR REPLACE TABLE `hca-takehome.analytics.psi13_monthly_metrics` AS WITH d
           WHERE b.code_sk = di.diag_code_sk
             AND b.code_type = 'Diagnosis'
             AND b.reference_year = 2025
-            AND b.identifier IN ('SEPTI2D', 'INFECID', 'MDC14PRINDX', 'MDC15PRINDX')
+            AND b.identifier IN (
+              'SEPTI2D',
+              'INFECID',
+              'MDC14PRINDX',
+              'MDC15PRINDX'
+            )
         )
       )
       OR -- Exclude if secondary dx POA=Y and tagged SEPTI2D or INFECID
@@ -70,21 +76,31 @@ CREATE OR REPLACE TABLE `hca-takehome.analytics.psi13_monthly_metrics` AS WITH d
       OR d.drg = '999'
   )
 SELECT di.year_month AS MONTH,
+  -- Numerator: denominator patients with ANY SECONDARY sepsis diagnosis (SEPTI2D)
   COUNT(
     DISTINCT IF(
-      dd.diag_code IN UNNEST(sepsis_codes)
-      AND dd.is_principal_diag = 0,
+      dd.is_principal_diag = 0
+      AND EXISTS (
+        SELECT 1
+        FROM sepsis_diag_codes s
+        WHERE s.code_sk = dd.diag_code_sk
+      ),
       di.patient_id,
       NULL
     )
   ) AS numerator,
   COUNT(DISTINCT di.patient_id) AS denominator,
+  -- Rate as proportion (keep identical behavior to your original query)
   ROUND(
     SAFE_DIVIDE(
       COUNT(
         DISTINCT IF(
-          dd.diag_code IN UNNEST(sepsis_codes)
-          AND dd.is_principal_diag = 0,
+          dd.is_principal_diag = 0
+          AND EXISTS (
+            SELECT 1
+            FROM sepsis_diag_codes s
+            WHERE s.code_sk = dd.diag_code_sk
+          ),
           di.patient_id,
           NULL
         )

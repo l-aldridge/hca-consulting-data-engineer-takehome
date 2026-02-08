@@ -115,3 +115,17 @@ CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.appendix_o_external` (
         quote = '"',
         allow_quoted_newlines = TRUE
     );
+
+CREATE OR REPLACE EXTERNAL TABLE `hca-takehome.raw_ext.sepsis_codes` (
+        code STRING,
+        code_description STRING,
+        code_type STRING,
+        identifier STRING
+    ) OPTIONS (
+        format = 'CSV',
+        uris = ['gs://hca-analytics-raw-dev/reference/sepsis_codes.csv'],
+        skip_leading_rows = 1,
+        field_delimiter = ',',
+        quote = '"',
+        allow_quoted_newlines = TRUE
+    );
